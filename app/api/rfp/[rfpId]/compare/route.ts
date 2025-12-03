@@ -78,7 +78,7 @@ export async function GET(req: NextRequest, context: any) {
 
     type ProposalItem = {
       vendor: { name: string };
-      aiScore: number;
+      aiScore: number | null;
       pricing: any;
       terms: any;
       rawEmail: string;
