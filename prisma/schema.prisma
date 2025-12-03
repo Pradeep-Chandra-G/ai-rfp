@@ -1,0 +1,66 @@
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model RFP {
+  id          String    @id @default(uuid())
+  title       String
+  description String    @db.Text
+  budget      Float?
+  deadline    DateTime?
+  requirements Json    // Structured data from AI
+  status      String    @default("draft") // draft, sent, completed
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  proposals   Proposal[]
+  rfpVendors  RFPVendor[]
+}
+
+model Vendor {
+  id          String    @id @default(uuid())
+  name        String
+  email       String    @unique
+  phone       String?
+  company     String?
+  createdAt   DateTime @default(now())
+
+  rfpVendors  RFPVendor[]
+  proposals   Proposal[]
+}
+
+model RFPVendor {
+  id          String    @id @default(uuid())
+  rfpId       String
+  vendorId    String
+  sentAt      DateTime @default(now())
+  status      String    @default("sent") // sent, responded, declined
+
+  rfp         RFP      @relation(fields: [rfpId], references: [id], onDelete: Cascade)
+  vendor      Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@unique([rfpId, vendorId])
+}
+
+model Proposal {
+  id          String    @id @default(uuid())
+  rfpId       String
+  vendorId    String
+  pricing     Json?    // AI-extracted pricing details
+  terms       Json?    // AI-extracted terms
+  rawEmail    String    @db.Text // Original email content
+  attachments Json?    // File references (optional)
+  aiScore     Float?   // AI evaluation score (0-100)
+  aiSummary   String?  @db.Text
+  receivedAt  DateTime @default(now())
+
+  rfp         RFP      @relation(fields: [rfpId], references: [id], onDelete: Cascade)
+  vendor      Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@unique([rfpId, vendorId])
+}
