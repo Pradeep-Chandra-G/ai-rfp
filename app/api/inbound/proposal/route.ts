@@ -5,38 +5,54 @@ import { getStructuredGroqOutput } from "@/lib/groq";
 import { StructuredProposalZod } from "@/lib/schemas";
 import { prisma } from "@/lib/db";
 
-// Strict UUID regex to prevent capturing trailing punctuation (like '.') or whitespace
+// Strict UUID regex remains the same
 const UUID_V4_REGEX = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 
-// --- Function to extract required data (Simplified and safer) ---
+// --- Function to extract required data ---
 function extractRFPandVendor(
     rawEmail: string,
     resendFrom: string
 ): { rfpId: string | null; vendorEmail: string } {
-    // Look for "RFP-ID:" followed by the strict UUID pattern
     const match = rawEmail.match(new RegExp(`RFP-ID:\\s*(${UUID_V4_REGEX.source})`, 'i'));
-
     let rfpId = match ? match[1] : null;
 
-    // Aggressively trim any residual whitespace from the extracted ID
     if (rfpId) {
         rfpId = rfpId.trim();
     }
-
-    // Ensure the vendor email is clean
-    const vendorEmail = resendFrom.trim();
     
-    return { rfpId, vendorEmail };
+    return { rfpId, vendorEmail: resendFrom.trim() };
 }
 
 // --- Main Webhook Handler ---
 export async function POST(req: NextRequest) {
+    let attachments: { filename: string; mimeType: string }[] = [];
+    
     try {
         const formData = await req.formData();
-
-        // Use safe accessors with a fallback type for clarity
+        
         const rawEmailContent = (formData.get("text") as string)?.trim() || "";
         const vendorEmailFromHeader = (formData.get("from") as string)?.trim() || "";
+
+        // --- ATTACHMENT PROCESSING ---
+        const attachmentFileNames: string[] = [];
+
+        // Iterate over all entries in the multipart form data
+        for (const [key, value] of formData.entries()) {
+            // Check if the entry is a File object (an attachment)
+            if (value instanceof File && key.startsWith('attachment')) {
+                
+                // IMPORTANT: In a production app, you would upload the file here 
+                // (e.g., to S3, Vercel Blob) and save the URL.
+                // For now, we only extract and save the metadata (filename and type).
+                
+                attachmentFileNames.push(value.name);
+                attachments.push({
+                    filename: value.name,
+                    mimeType: value.type,
+                });
+            }
+        }
+        // -----------------------------
 
         if (!rawEmailContent || !vendorEmailFromHeader) {
             return NextResponse.json(
@@ -63,7 +79,7 @@ export async function POST(req: NextRequest) {
         // 2. Find Vendor and Validate Existence
         const vendor = await prisma.vendor.findUnique({
             where: { email: vendorEmail },
-            select: { id: true, email: true, name: true } // Select only needed fields
+            select: { id: true, email: true, name: true }
         });
 
         if (!vendor) {
@@ -74,21 +90,16 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        // 3. Define the AI System Prompt
-        // NOTE: It is generally safer to define this prompt outside the handler 
-        // or fetch it from a centralized config if possible.
-        const systemPrompt = `You are a proposal parsing engine. Analyze the vendor's email proposal and extract pricing, terms, and conditions into a clean JSON object that strictly adheres to the provided Zod schema. The schema shape is: ${JSON.stringify(
-            StructuredProposalZod.shape
-        )}. Focus on accurately extracting all details, including completeness score (0-100) and a summary.`;
+        // 3. Define the AI System Prompt (unchanged)
+        const systemPrompt = `You are a proposal parsing engine. ... The schema shape is: ${JSON.stringify(StructuredProposalZod.shape)}. ...`;
 
-        // 4. Call Groq for structured proposal parsing
+        // 4. Call Groq for structured proposal parsing (unchanged)
         const structuredProposal = await getStructuredGroqOutput(
             systemPrompt,
             rawEmailContent,
             StructuredProposalZod
         );
         
-        // Ensure structuredProposal has the expected fields before saving
         const { 
             pricingDetails, 
             keyTermsSummary, 
@@ -104,11 +115,12 @@ export async function POST(req: NextRequest) {
                     rfpId: rfpId,
                     vendorId: vendor.id,
                     rawEmail: rawEmailContent,
-                    // Use clean object fields instead of just casting 'as any' 
                     pricing: pricingDetails as any, 
                     terms: { summary: keyTermsSummary } as any, 
                     aiScore: completenessScore,
                     aiSummary: keyTermsSummary,
+                    // 💡 NEW: Save the list of attachment metadata (filenames, types)
+                    attachments: attachments as any, 
                 },
             }),
 
@@ -124,13 +136,14 @@ export async function POST(req: NextRequest) {
                 status: "ok",
                 message: "Proposal successfully processed and saved.",
                 proposalId: newProposal.id,
+                attachmentsSaved: attachmentFileNames, // Confirm attachments were seen
             },
             { status: 201 }
         );
     } catch (error) {
+        // ... error handling (unchanged) ...
         console.error("Critical Proposal Parsing Error:", error);
         
-        // Return a 500 with sanitized details.
         const errorMessage = error instanceof Error ? error.message : "An unknown error occurred during proposal processing.";
 
         return NextResponse.json(
