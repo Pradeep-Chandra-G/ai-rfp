@@ -84,29 +84,39 @@ export async function POST(req: NextRequest) {
     );
 
     // 4. Save the new Proposal to the database
-    const newProposal = await prisma.proposal.create({
-      data: {
-        rfpId: rfpId,
-        vendorId: vendor.id,
-        rawEmail: rawEmailContent,
-        pricing: structuredProposal.pricingDetails as any,
-        terms: { summary: structuredProposal.keyTermsSummary } as any,
-        aiScore: structuredProposal.completenessScore,
-        aiSummary: structuredProposal.keyTermsSummary,
-        rfpVendor: {
-          upsert: {
-            where: { rfpId_vendorId: { rfpId: rfpId, vendorId: vendor.id } },
-            update: { status: "responded" },
-            create: { rfpId: rfpId, vendorId: vendor.id, status: "responded" },
+    const [newProposal, updatedRFPVendor] = await prisma.$transaction([
+      // Operation 1: Create the Proposal Record
+      prisma.proposal.create({
+        data: {
+          rfpId: rfpId,
+          vendorId: vendor.id,
+          rawEmail: rawEmailContent,
+          pricing: structuredProposal.pricingDetails as any,
+          terms: { summary: structuredProposal.keyTermsSummary } as any,
+          aiScore: structuredProposal.completenessScore,
+          aiSummary: structuredProposal.keyTermsSummary,
+          // Note: The rfpVendor field is GONE from here.
+        },
+      }),
+
+      // Operation 2: Update the RFPVendor Join Table Status to 'responded'
+      prisma.rFPVendor.update({
+        where: {
+          rfpId_vendorId: {
+            rfpId: rfpId,
+            vendorId: vendor.id,
           },
         },
-      },
-    });
+        data: {
+          status: "responded",
+        },
+      }),
+    ]);
 
     return NextResponse.json(
       {
         status: "ok",
-        message: "Proposal parsed and saved.",
+        message: "Proposal parsed and saved. RFPVendor status updated.",
         proposal: newProposal,
       },
       { status: 201 }

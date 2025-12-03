@@ -18,13 +18,10 @@ export async function getStructuredGroqOutput<T>(
 
   // 1. Convert the Zod schema to a JSON Schema object.
   // We include the name here for internal documentation, but the Groq API needs it in the response_format payload.
-  const schemaForGroq = zodToJsonSchema(
-    outputSchema as z.ZodType<any, any, any>,
-    {
-      target: "jsonSchema7",
-      name: schemaName,
-    }
-  ) as any;
+  const schemaForGroq = zodToJsonSchema(outputSchema as any, {
+    target: "jsonSchema7",
+    name: schemaName,
+  }) as any;
 
   const chatCompletion = await groq.chat.completions.create({
     messages: [

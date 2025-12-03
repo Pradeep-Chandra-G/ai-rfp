@@ -44,21 +44,20 @@ const RecommendationZod = z.object({
 export type Recommendation = z.infer<typeof RecommendationZod>;
 
 // Define the expected Context type for clarity
-export interface Context {
-  params: {
-    rfpId: string;
-  };
-}
+// export interface Context {
+//   params: {
+//     rfpId: string;
+//   };
+// }
 
-export async function GET(req: NextRequest, context: Context) {
+export async function GET(req: NextRequest, context: any) {
   try {
-    const rfpId = context.params.rfpId;
+    const rfpId = context.params.rfpId as string;
 
     // 1. Fetch the RFP and all associated Proposals
     const rfp = await prisma.rFP.findUnique({
       where: { id: rfpId },
       include: {
-        requirements: true,
         proposals: {
           include: {
             vendor: true, // Include vendor details for naming
