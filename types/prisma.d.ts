@@ -1,8 +1,14 @@
-import { RFP, Vendor, RFPVendor, Proposal, JsonValue } from "@prisma/client";
+import {
+  RFP,
+  Vendor,
+  RFPVendor,
+  Proposal,
+  JsonValue,
+} from "@prisma/client";
 
 // 1. RFP Model Type
 // Represents a single RFP record fetched from the database.
-type RFPModel = RFP;
+type RFP = RFP;
 /* {
     id: string;
     title: string;
@@ -30,7 +36,7 @@ type Vendor = Vendor;
 */
 
 // 3. Proposal Model Type
-type ProposalModel = Proposal;
+type Proposal = Proposal;
 /*
 {
     id: string;
@@ -47,7 +53,7 @@ type ProposalModel = Proposal;
 */
 
 // 4. RFPVendor Model Type (Join Table)
-type RFPVendorModel = RFPVendor;
+type RFPVendor = RFPVendor;
 /*
 {
     id: string;
