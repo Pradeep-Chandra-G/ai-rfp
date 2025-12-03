@@ -78,14 +78,26 @@ export async function GET(req: NextRequest, context: any) {
 
     // 2. Prepare the context for the AI
     // Simplify the data structure for the LLM
-    const proposalData = rfp.proposals.map((p) => ({
-      vendorName: p.vendor.name,
-      aiScore: p.aiScore,
-      pricing: p.pricing, // JSON object from the database
-      terms: p.terms, // JSON object from the database
-      rawEmailSnippet: p.rawEmail.substring(0, 500) + "...", // Limit size
-      receivedAt: p.receivedAt,
-    }));
+    const proposalData = rfp.proposals.map((p) => {
+      // 💡 FIX IS HERE: Assert the proposal item to the known structure
+      const proposal = p as {
+        vendor: { name: string };
+        aiScore: number;
+        pricing: any; // Use the type of your JSON field
+        terms: any; // Use the type of your JSON field
+        rawEmail: string;
+        receivedAt: Date;
+      };
+
+      return {
+        vendorName: proposal.vendor.name,
+        aiScore: proposal.aiScore,
+        pricing: proposal.pricing,
+        terms: proposal.terms,
+        rawEmailSnippet: proposal.rawEmail.substring(0, 500) + "...",
+        receivedAt: proposal.receivedAt,
+      };
+    });
 
     const contextMessage = `RFP Requirements:\n${JSON.stringify(
       rfp.requirements,
