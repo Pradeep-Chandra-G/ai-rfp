@@ -43,12 +43,16 @@ const RecommendationZod = z.object({
 
 export type Recommendation = z.infer<typeof RecommendationZod>;
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: { rfpId: string } }
-) {
+// Define the expected Context type for clarity
+export interface Context {
+  params: {
+    rfpId: string;
+  };
+}
+
+export async function GET(req: NextRequest, context: Context) {
   try {
-    const { rfpId } = params;
+    const rfpId = context.params.rfpId;
 
     // 1. Fetch the RFP and all associated Proposals
     const rfp = await prisma.rFP.findUnique({
