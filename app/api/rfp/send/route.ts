@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { Resend } from "resend";
 // 💡 NEW: Import the generated Vendor type from Prisma Client
-import { Vendor } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
 
     // 💡 FIX: Explicitly set the type of the 'vendors' array and the 'vendor' parameter.
     // The query above already returns an array of the Prisma 'Vendor' type.
-    const sendPromises = (vendors as Vendor[]).map(async (vendor: Vendor) => {
+    const sendPromises = (vendors as Prisma.Vendor[]).map(async (vendor: Prisma.Vendor) => {
       // OR simply: const sendPromises = vendors.map(async (vendor: Vendor) => {
 
       // Construct the email body using the structured RFP data
