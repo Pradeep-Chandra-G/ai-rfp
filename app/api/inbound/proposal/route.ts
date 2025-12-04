@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getStructuredGroqOutput } from "@/lib/groq";
 import { StructuredProposalZod } from "@/lib/schemas";
 import { prisma } from "@/lib/db";
+import { raw } from "@prisma/client/runtime/client";
 // 💡 REQUIRED: Vercel Blob SDK for file uploads
 // You need to run: npm install @vercel/blob
 // import { put } from '@vercel/blob';
@@ -64,6 +65,7 @@ export async function POST(req: NextRequest) {
     const vendorEmailFromHeader = resendPayload.data.from?.trim() || "";
 
     if (!rawEmailContent || !vendorEmailFromHeader) {
+      console.log(rawEmailContent, vendorEmailFromHeader);
       return NextResponse.json(
         {
           error: "Missing required webhook payload fields (text/from).",
