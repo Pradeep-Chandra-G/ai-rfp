@@ -59,6 +59,7 @@ export async function POST(req: NextRequest) {
   try {
     // 🛑 FIX: Use req.json() to parse the incoming JSON payload from Resend
     const resendPayload: ResendWebhookPayload = await req.json();
+    console.log("Received Resend Webhook Payload:", resendPayload);
 
     // 🛑 FIX: Extract data from the nested JSON structure
     const rawEmailContent = resendPayload.data.text?.trim() || "";
