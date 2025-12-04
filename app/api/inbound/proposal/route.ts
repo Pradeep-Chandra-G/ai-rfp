@@ -1,5 +1,5 @@
 // app/api/inbound/proposal/route.ts - FINAL CORRECTED VERSION
-
+import { revalidatePath } from 'next/cache';
 import { NextRequest, NextResponse } from "next/server";
 import { getStructuredGroqOutput } from "@/lib/groq";
 import { StructuredProposalZod } from "@/lib/schemas";
@@ -177,6 +177,8 @@ export async function POST(req: NextRequest) {
         }
       ).catch((e) => console.error("Failed to trigger OCR process:", e));
     }
+
+    revalidatePath("/");
 
     return NextResponse.json(
       {
