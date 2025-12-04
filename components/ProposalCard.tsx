@@ -48,7 +48,7 @@ export default function ProposalCard({ proposal }: ProposalCardProps) {
         </h3>
         <span className="text-xs text-gray-500 flex items-center">
           <Clock className="w-3 h-3 mr-1" />
-          {proposal.receivedAt.toLocaleDateString()}
+          {proposal.receivedAt}
         </span>
       </div>
 

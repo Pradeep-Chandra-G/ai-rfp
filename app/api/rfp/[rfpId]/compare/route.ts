@@ -4,6 +4,12 @@ import { getStructuredGroqOutput } from "@/lib/groq";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
 
+interface RouteContext {
+  params: {
+    rfpId: string;
+  };
+}
+
 // Zod Schema for the final AI Recommendation Output
 const RecommendationZod = z.object({
   recommendation: z.string().describe("The name of the recommended vendor."),
@@ -50,9 +56,33 @@ export type Recommendation = z.infer<typeof RecommendationZod>;
 //   };
 // }
 
-export async function GET(req: NextRequest, context: any) {
+export async function GET(req: NextRequest, context: RouteContext) {
   try {
-    const rfpId = context.params.rfpId as string;
+    const url = new URL(req.url);
+    const pathnameParts = url.pathname.split("/");
+
+    // The RFP ID is the last part of the path, e.g., /api/rfp/[rfpId]/compare
+    // Indexing the parts: [0]="", [1]="api", [2]="rfp", [3]="[rfpId]", [4]="compare"
+    // We expect the UUID to be at index [4] if the route is /api/rfp/[rfpId]/compare
+    // Or, more robustly, we use the fact that the UUID is always two segments before 'compare'
+
+    // Find the 'compare' segment and take the element immediately before it.
+    let rfpId: string | undefined;
+    const compareIndex = pathnameParts.lastIndexOf("compare");
+    if (compareIndex > 0) {
+      // The ID is the segment immediately before 'compare'
+      rfpId = pathnameParts[compareIndex - 1];
+    }
+
+    console.log("Comparing proposals for RFP ID (Extracted):", rfpId);
+
+    if (!rfpId) {
+      console.error("Manual URL parsing failed to extract RFP ID.");
+      return NextResponse.json(
+        { error: "Failed to parse RFP ID from URL path." },
+        { status: 400 }
+      );
+    }
 
     // 1. Fetch the RFP and all associated Proposals
     const rfp = await prisma.rFP.findUnique({

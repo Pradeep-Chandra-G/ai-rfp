@@ -38,7 +38,10 @@ export default function CreateRFPForm() {
       // Redirect to the main dashboard to view the new 'draft' RFP
       router.push("/");
     } catch (error: Error | unknown) {
-      const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred during creation.";
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "An unexpected error occurred during creation.";
       toast.error(errorMessage);
       console.error(error);
     } finally {
