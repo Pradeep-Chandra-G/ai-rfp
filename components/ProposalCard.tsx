@@ -7,7 +7,7 @@ interface Proposal {
   id: string;
   vendorName: string;
   aiScore: number | null;
-  receivedAt: Date;
+  receivedAt: string; // Changed to string for serialization
   aiSummary: string | null;
   // Note: These fields are stored as JSON in Prisma, hence the 'any' type
   pricing: any;

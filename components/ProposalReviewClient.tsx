@@ -12,7 +12,7 @@ interface Proposal {
   id: string;
   vendorName: string;
   aiScore: number | null;
-  receivedAt: Date;
+  receivedAt: string; // Changed to string for serialization
   aiSummary: string | null;
   pricing: any;
   terms: any;
