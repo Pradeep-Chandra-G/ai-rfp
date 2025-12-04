@@ -5,9 +5,11 @@ import { prisma } from "@/lib/db";
 import { z } from "zod";
 
 interface RouteContext {
-  params: {
-    rfpId: string;
-  };
+    params: {
+        rfpId: string;
+    } | Promise<{ 
+        rfpId: string; 
+    }>; // Allow params to be the Promise wrapper
 }
 
 // Zod Schema for the final AI Recommendation Output
