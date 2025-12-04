@@ -59,11 +59,12 @@ export default async function ProposalReviewPage({
 }: {
   params: { rfpId: string };
 }) {
-  console.log("RFP ID Params:", params);
-  if (!params.rfpId) {
+  const rfpId = params.rfpId;
+  if (!rfpId) {
+    // This failsafe is critical
     return notFound();
   }
-  const data = await fetchRFPAndProposals(params.rfpId);
+  const data = await fetchRFPAndProposals(rfpId);
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
