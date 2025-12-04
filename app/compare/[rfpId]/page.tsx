@@ -59,6 +59,10 @@ export default async function ProposalReviewPage({
 }: {
   params: { rfpId: string };
 }) {
+  console.log("RFP ID Params:", params);
+  if (!params.rfpId) {
+    return notFound();
+  }
   const data = await fetchRFPAndProposals(params.rfpId);
 
   return (
