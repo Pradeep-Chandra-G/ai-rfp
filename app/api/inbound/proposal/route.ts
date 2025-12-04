@@ -1,5 +1,5 @@
 // app/api/inbound/proposal/route.ts - FINAL CORRECTED VERSION
-import { revalidatePath } from 'next/cache';
+import { revalidatePath } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
 import { getStructuredGroqOutput } from "@/lib/groq";
 import { StructuredProposalZod } from "@/lib/schemas";
@@ -167,6 +167,13 @@ export async function POST(req: NextRequest) {
         data: { status: "responded" },
       }),
     ]);
+
+    // 🛑 CRITICAL FIX: Update the main RFP status to 'responded' if it was previously 'sent'.
+    // This action ensures the dashboard condition for the "View Proposals" button is met.
+    await prisma.rFP.update({
+      where: { id: rfpId, status: { not: "completed" } }, // Avoid changing if already completed
+      data: { status: "responded" },
+    });
 
     // Trigger OCR process for attachments (Asynchronous)
     if (attachmentsMetadata.length > 0) {
