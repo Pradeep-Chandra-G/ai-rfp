@@ -7,8 +7,6 @@ import Groq from "groq-sdk";
 // 💡 Use unpdf for serverless-friendly PDF text extraction
 import { extractText, getDocumentProxy } from "unpdf"; // NEW IMPORT
 
-
-
 // Schema for extracting structured data from OCR'd documents
 const OCRExtractionZod = z.object({
   detectedPricing: z
@@ -144,8 +142,7 @@ export async function POST(
   context: { params: { proposalId: string } }
 ) {
   try {
-    const resolvedParams = await context.params;
-    const proposalId = resolvedParams.proposalId;
+    const proposalId = context.params.proposalId;
 
     if (!proposalId) {
       return NextResponse.json(
