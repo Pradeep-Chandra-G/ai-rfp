@@ -31,21 +31,7 @@ function extractRFPandVendor(
   return { rfpId, vendorEmail: vendorEmail.trim() };
 }
 
-async function fetchAttachmentContent(emailId: string, attachmentId: string) {
-  const url = `https://api.resend.com/emails/${emailId}/attachments/${attachmentId}/content`;
-
-  const response = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch attachment content: ${response.status}`);
-  }
-
-  return Buffer.from(await response.arrayBuffer());
-}
+// REMOVED: async function fetchAttachmentContent(emailId: string, attachmentId: string) { ... }
 
 export async function POST(req: NextRequest) {
   const attachmentsMetadata: {
@@ -96,11 +82,37 @@ export async function POST(req: NextRequest) {
         attachmentPromises.push(
           (async () => {
             try {
-              // Fetch the binary data
-              const fileBuffer = await fetchAttachmentContent(
-                fullEmail.id,
-                attachment.id
-              );
+              // 1. Use Resend SDK to get attachment details (including download_url)
+              const { data: attachmentDetails, error: attachError } =
+                await resend.emails.receiving.attachments.get({
+                  emailId: fullEmail.id,
+                  id: attachment.id,
+                });
+
+              if (
+                attachError ||
+                !attachmentDetails ||
+                !attachmentDetails.download_url
+              ) {
+                console.error(
+                  `Resend Attachment Get Error for ${attachment.filename}:`,
+                  attachError
+                );
+                throw new Error(
+                  `Failed to get attachment download details for ${attachment.filename}. Error: ${attachError?.message}`
+                );
+              }
+
+              // 2. Fetch the binary data using the provided download URL
+              const fetchResponse = await fetch(attachmentDetails.download_url);
+              if (!fetchResponse.ok) {
+                throw new Error(
+                  `Failed to download attachment from Resend CDN: ${fetchResponse.statusText}`
+                );
+              }
+
+              // 3. Convert ArrayBuffer to Buffer for Vercel Blob upload
+              const fileBuffer = Buffer.from(await fetchResponse.arrayBuffer());
 
               const blobUrl = await uploadToBlob(
                 attachment.filename,
