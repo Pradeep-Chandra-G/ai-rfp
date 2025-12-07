@@ -2,7 +2,7 @@
 import { prisma } from "@/lib/db";
 import ProposalDetailClient from "@/components/ProposalDetailClient";
 import { notFound } from "next/navigation";
-import { DollarSign, FileText, Zap } from "lucide-react";
+
 
 // Define the comprehensive data structure
 type ProposalDetailData = {

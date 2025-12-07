@@ -1,19 +1,17 @@
-// app/api/inbound/proposal/route.ts - FINAL CORRECTED VERSION
+// app/api/inbound/proposal/route.ts - WITH VERCEL BLOB IMPLEMENTATION
 import { revalidatePath } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
 import { getStructuredGroqOutput } from "@/lib/groq";
 import { StructuredProposalZod } from "@/lib/schemas";
 import { prisma } from "@/lib/db";
 import { Resend } from "resend";
-// import { put } from '@vercel/blob'; // Required if using Vercel Blob
+import { uploadToBlob } from "@/lib/storage";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-// Strict UUID regex remains the same
 const UUID_V4_REGEX =
   /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 
-// --- Function to extract required data ---
 function extractRFPandVendor(
   rawEmail: string,
   resendFrom: string
@@ -27,23 +25,37 @@ function extractRFPandVendor(
     rfpId = rfpId.trim();
   }
 
-  // Regex to extract the pure email address from the 'from' header
   const emailMatch = resendFrom.match(/<([^>]+)>/) || [null, resendFrom];
   const vendorEmail = emailMatch[1] || resendFrom;
 
   return { rfpId, vendorEmail: vendorEmail.trim() };
 }
 
-// --- Main Webhook Handler ---
+async function fetchAttachmentContent(emailId: string, attachmentId: string) {
+  const url = `https://api.resend.com/emails/${emailId}/attachments/${attachmentId}/content`;
+
+  const response = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch attachment content: ${response.status}`);
+  }
+
+  return Buffer.from(await response.arrayBuffer());
+}
+
 export async function POST(req: NextRequest) {
-  let attachmentsMetadata: {
+  const attachmentsMetadata: {
     filename: string;
     mimeType: string;
     url: string;
   }[] = [];
 
   try {
-    const webhookEvent: any = await req.json(); // Use 'any' for the webhook structure
+    const webhookEvent: any = await req.json();
 
     if (webhookEvent.type !== "email.received") {
       return NextResponse.json(
@@ -52,7 +64,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 🛑 STEP 1: CALL THE RESEND RECEIVING API TO GET THE FULL EMAIL CONTENT
+    // 1. Fetch full email content from Resend
     const { data: fullEmail, error: resendError } =
       await resend.emails.receiving.get(webhookEvent.data.email_id);
 
@@ -61,12 +73,10 @@ export async function POST(req: NextRequest) {
       throw new Error("Failed to fetch full email content from Resend.");
     }
 
-    // 🛑 STEP 2: EXTRACT THE CONTENT FROM THE FETCHED EMAIL OBJECT
     const rawEmailContent =
       fullEmail.text?.trim() || fullEmail.subject?.trim() || "";
     const vendorEmailFromHeader = fullEmail.from?.trim() || "";
 
-    // --- BASIC VALIDATION ---
     if (!vendorEmailFromHeader) {
       return NextResponse.json(
         { error: "Missing 'from' header." },
@@ -74,51 +84,63 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // --- ATTACHMENT UPLOAD & PROCESSING ---
-    // fullEmail.attachments contains the actual attachment data for Vercel Blob
+    // 2. ATTACHMENT UPLOAD TO VERCEL BLOB
     const attachmentPromises: Promise<void>[] = [];
 
-    for (const attachment of fullEmail.attachments || []) {
-      attachmentPromises.push(
-        (async () => {
-          const filePath = `proposals/${crypto.randomUUID()}-${
-            attachment.filename
-          }`;
-
-          // 💡 Implement Vercel Blob logic here:
-          // const fileBuffer = Buffer.from(attachment.content as string, 'base64');
-          // const blob = await put(filePath, fileBuffer, { ... });
-
-          // Placeholder for local testing:
-          const blob = { url: `https://placeholder.com/${filePath}` };
-
-          attachmentsMetadata.push({
-            filename: attachment.filename,
-            mimeType: attachment.content_type as string, // Ensure type casting is safe
-            url: blob.url,
-          });
-        })()
+    if (fullEmail.attachments && fullEmail.attachments.length > 0) {
+      console.log(
+        `📎 Uploading ${fullEmail.attachments.length} attachment(s) to Vercel Blob...`
       );
+
+      for (const attachment of fullEmail.attachments) {
+        attachmentPromises.push(
+          (async () => {
+            try {
+              // Fetch the binary data
+              const fileBuffer = await fetchAttachmentContent(
+                fullEmail.id,
+                attachment.id
+              );
+
+              const blobUrl = await uploadToBlob(
+                attachment.filename,
+                fileBuffer,
+                attachment.content_type,
+                "proposals"
+              );
+
+              attachmentsMetadata.push({
+                filename: attachment.filename,
+                mimeType: attachment.content_type,
+                url: blobUrl,
+              });
+            } catch (uploadError) {
+              console.error(
+                `❌ Failed to upload ${attachment.filename}:`,
+                uploadError
+              );
+            }
+          })()
+        );
+      }
+
+      await Promise.all(attachmentPromises);
     }
 
-    await Promise.all(attachmentPromises);
-    // --------------------------------------------------------------------------
-
-    // 1. Extract context (RFP ID, Vendor)
+    // 3. Extract RFP ID and Vendor
     const { rfpId, vendorEmail } = extractRFPandVendor(
       rawEmailContent,
       vendorEmailFromHeader
     );
 
     if (!rfpId || !UUID_V4_REGEX.test(rfpId)) {
-      // This is the correct error to return if the RFP-ID is missing/invalid
       return NextResponse.json(
         { error: "RFP-ID could not be extracted from the email content." },
         { status: 400 }
       );
     }
 
-    // 2. Find Vendor and Validate Existence
+    // 4. Find Vendor
     const vendor = await prisma.vendor.findUnique({
       where: { email: vendorEmail },
       select: { id: true, email: true, name: true },
@@ -134,10 +156,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 3. Define the AI System Prompt and 4. Call Groq
-    const systemPrompt = `You are a proposal parsing engine. ... ${JSON.stringify(
-      StructuredProposalZod.shape
-    )}. ...`;
+    // 5. AI Parsing of Email Body
+    const systemPrompt = `You are a proposal parsing engine. Extract pricing, delivery timelines, warranty terms, and completeness information from vendor proposals. 
+
+Your output MUST strictly conform to this schema:
+${JSON.stringify(StructuredProposalZod.shape)}
+
+Analyze the proposal thoroughly and provide realistic completeness scores based on how well the vendor addressed all requirements.`;
 
     const structuredProposal = await getStructuredGroqOutput(
       systemPrompt,
@@ -148,7 +173,7 @@ export async function POST(req: NextRequest) {
     const { pricingDetails, keyTermsSummary, completenessScore } =
       structuredProposal as any;
 
-    // 5. Save the new Proposal and update RFPVendor status
+    // 6. Save Proposal to Database
     const [newProposal] = await prisma.$transaction([
       prisma.proposal.create({
         data: {
@@ -168,19 +193,23 @@ export async function POST(req: NextRequest) {
       }),
     ]);
 
-    // 🛑 CRITICAL FIX: Update the main RFP status to 'responded' if it was previously 'sent'.
-    // This action ensures the dashboard condition for the "View Proposals" button is met.
+    // 7. Update RFP Status
     await prisma.rFP.update({
-      where: { id: rfpId, status: { not: "completed" } }, // Avoid changing if already completed
+      where: { id: rfpId, status: { not: "completed" } },
       data: { status: "responded" },
     });
 
-    // Trigger OCR process for attachments (Asynchronous)
+    // 8. Trigger OCR Processing Asynchronously
     if (attachmentsMetadata.length > 0) {
+      console.log(
+        `🔍 Triggering OCR processing for ${attachmentsMetadata.length} attachment(s)...`
+      );
+
       fetch(
         `${process.env.NEXT_PUBLIC_BASE_URL}/api/proposals/${newProposal.id}/process-attachments`,
         {
           method: "POST",
+          headers: { "Content-Type": "application/json" },
         }
       ).catch((e) => console.error("Failed to trigger OCR process:", e));
     }
@@ -192,11 +221,12 @@ export async function POST(req: NextRequest) {
         status: "ok",
         message: "Proposal successfully processed and saved. OCR triggered.",
         proposalId: newProposal.id,
+        attachmentsUploaded: attachmentsMetadata.length,
+        attachmentUrls: attachmentsMetadata.map((a) => a.url),
       },
       { status: 201 }
     );
   } catch (error) {
-    // ... (Error handling remains the same) ...
     console.error("Critical Proposal Processing Error:", error);
 
     const errorMessage =

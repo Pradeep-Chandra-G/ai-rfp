@@ -1,4 +1,4 @@
-// components/ProposalDetailClient.tsx
+// components/ProposalDetailClient.tsx - UPDATED WITH OCR SECTION
 "use client";
 
 import {
@@ -10,8 +10,8 @@ import {
   Code,
 } from "lucide-react";
 import { useState } from "react";
+import OCRResultsSection from "../components/OCRResultsSection";
 
-// Define the interface to match the data structure from the server
 interface Proposal {
   id: string;
   rfpTitle: string;
@@ -32,17 +32,15 @@ interface ProposalDetailClientProps {
 export default function ProposalDetailClient({
   proposal,
 }: ProposalDetailClientProps) {
-  const [activeTab, setActiveTab] = useState("summary"); // 'summary' or 'raw'
+  const [activeTab, setActiveTab] = useState("summary");
 
-  // Helper to calculate score status (reuse logic if available)
   const scoreText =
     proposal.aiScore !== null ? `${Math.round(proposal.aiScore)}%` : "N/A";
 
   return (
     <div>
-      {/* --- Summary Cards --- */}
+      {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        {/* AI Score Card */}
         <div className="bg-white p-6 rounded-xl shadow-lg border-l-4 border-indigo-500">
           <h3 className="text-lg font-semibold text-gray-700 flex items-center mb-2">
             <Zap className="w-5 h-5 mr-2 text-indigo-500" /> AI Completeness
@@ -51,7 +49,6 @@ export default function ProposalDetailClient({
           <p className="text-4xl font-extrabold text-indigo-800">{scoreText}</p>
         </div>
 
-        {/* Price Card */}
         <div className="bg-white p-6 rounded-xl shadow-lg border-l-4 border-green-500">
           <h3 className="text-lg font-semibold text-gray-700 flex items-center mb-2">
             <DollarSign className="w-5 h-5 mr-2 text-green-500" /> Quoted Price
@@ -63,7 +60,6 @@ export default function ProposalDetailClient({
           </p>
         </div>
 
-        {/* Attachments Card */}
         <div className="bg-white p-6 rounded-xl shadow-lg border-l-4 border-blue-500">
           <h3 className="text-lg font-semibold text-gray-700 flex items-center mb-2">
             <Paperclip className="w-5 h-5 mr-2 text-blue-500" /> Attachments
@@ -74,7 +70,19 @@ export default function ProposalDetailClient({
         </div>
       </div>
 
-      {/* --- Tabs --- */}
+      {/* OCR Results Section - NEW */}
+      {proposal.attachments.length > 0 && (
+        <div className="mb-8">
+          <OCRResultsSection
+            proposalId={proposal.id}
+            attachments={proposal.attachments}
+            currentPricing={proposal.pricing}
+            currentTerms={proposal.terms}
+          />
+        </div>
+      )}
+
+      {/* Tabs */}
       <div className="mb-4 border-b border-gray-200">
         <nav className="-mb-px flex space-x-8" aria-label="Tabs">
           <button
@@ -100,7 +108,7 @@ export default function ProposalDetailClient({
         </nav>
       </div>
 
-      {/* --- Tab Content --- */}
+      {/* Tab Content */}
       <div className="bg-white p-8 rounded-xl shadow-lg">
         {activeTab === "summary" && (
           <div className="space-y-6">
@@ -170,6 +178,3 @@ export default function ProposalDetailClient({
     </div>
   );
 }
-
-// NOTE: You must also ensure the useState hook is imported at the top:
-// import { useState } from 'react';
