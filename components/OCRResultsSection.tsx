@@ -1,4 +1,3 @@
-// components/OCRResultsSection.tsx - NEW FILE
 "use client";
 
 import { FileText, Eye, Loader2 } from "lucide-react";

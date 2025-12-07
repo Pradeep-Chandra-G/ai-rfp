@@ -1,15 +1,14 @@
-// app/compare/[rfpId]/page.tsx (Final Refactoring)
+// app/compare/[rfpId]/page.tsx
 
 import { prisma } from "@/lib/db";
 import ProposalReviewClient from "@/components/ProposalReviewClient";
-import { notFound } from "next/navigation"; // Do not use unused imports (Zap, List, DollarSign)
+import { notFound } from "next/navigation";
 
 // Define structured types for the page
 type ProposalData = {
   id: string;
   vendorName: string;
   aiScore: number | null;
-  // 🛑 CORRECT: Must be a serializable string for Server Component props
   receivedAt: string;
   aiSummary: string | null;
   pricing: any;
@@ -18,7 +17,6 @@ type ProposalData = {
 
 // Fetch data on the server
 async function fetchRFPAndProposals(rfpId: string) {
-  // 🛑 FIX: Use a try/catch block around the data fetch to debug external errors
   try {
     const rfp = await prisma.rFP.findUnique({
       where: { id: rfpId },
@@ -67,7 +65,7 @@ export default async function ProposalReviewPage(props: {
   params: { rfpId: string } | Promise<{ rfpId: string }>;
 }) {
   // 1. Parameter Validation
-  const resolvedParams = await props.params; // Using props ensures resolution
+  const resolvedParams = await props.params;
   const rfpId = resolvedParams.rfpId;
 
   if (!rfpId) {

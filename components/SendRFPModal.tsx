@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { Loader2, UserPlus, X, Mail } from "lucide-react";
-import toast from "react-hot-toast";
 import SendRFPButton from "./SendRFPButton"; // Reuses the existing button logic
 
 interface Vendor {

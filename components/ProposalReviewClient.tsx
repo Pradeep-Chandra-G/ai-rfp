@@ -1,4 +1,3 @@
-// components/ProposalReviewClient.tsx
 "use client";
 
 import { useState } from "react";
@@ -7,7 +6,6 @@ import toast from "react-hot-toast";
 import { Recommendation } from "@/app/api/rfp/[rfpId]/compare/route"; // Import the type
 import ProposalCard from "./ProposalCard";
 
-// Define the expected Proposal type from the server component
 interface Proposal {
   id: string;
   vendorName: string;
@@ -35,7 +33,6 @@ export default function ProposalReviewClient({
     setLoading(true);
     setComparisonResult(null);
     try {
-      // Calls the route you developed earlier: /api/rfp/[rfpId]/compare
       const response = await fetch(`/api/rfp/${rfpId}/compare`, {
         method: "GET",
       });
@@ -102,7 +99,7 @@ export default function ProposalReviewClient({
             <ul className="list-disc list-inside space-y-1 text-gray-700">
               {comparisonResult.actionItems.map((item, index) => (
                 <li key={index} className="flex items-start">
-                  <CheckCircle className="w-4 h-4 mr-2 mt-1 text-green-500 flex-shrink-0" />{" "}
+                  <CheckCircle className="w-4 h-4 mr-2 mt-1 text-green-500 shrink-0" />{" "}
                   {item}
                 </li>
               ))}

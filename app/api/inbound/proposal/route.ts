@@ -31,8 +31,6 @@ function extractRFPandVendor(
   return { rfpId, vendorEmail: vendorEmail.trim() };
 }
 
-// REMOVED: async function fetchAttachmentContent(emailId: string, attachmentId: string) { ... }
-
 export async function POST(req: NextRequest) {
   const attachmentsMetadata: {
     filename: string;

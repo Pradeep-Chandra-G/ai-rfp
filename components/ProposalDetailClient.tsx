@@ -37,6 +37,15 @@ export default function ProposalDetailClient({
   const scoreText =
     proposal.aiScore !== null ? `${Math.round(proposal.aiScore)}%` : "N/A";
 
+  const primaryPrice =
+    proposal.pricing?.ocrTotalAmount ||
+    proposal.pricing?.totalPrice ||
+    proposal.pricing?.estimatedCost;
+
+  const formattedPrice = primaryPrice
+    ? `$${primaryPrice.toLocaleString()}`
+    : "N/A";
+
   return (
     <div>
       {/* Summary Cards */}
@@ -54,9 +63,7 @@ export default function ProposalDetailClient({
             <DollarSign className="w-5 h-5 mr-2 text-green-500" /> Quoted Price
           </h3>
           <p className="text-3xl font-extrabold text-green-800">
-            {proposal.pricing?.totalPrice
-              ? `$${proposal.pricing.totalPrice.toLocaleString()}`
-              : "N/A"}
+            {formattedPrice}
           </p>
         </div>
 

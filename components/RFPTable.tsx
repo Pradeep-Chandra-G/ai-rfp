@@ -1,4 +1,3 @@
-// components/RFPTable.tsx - COMPLETE UPDATED VERSION
 "use client";
 
 import { DollarSign, List, Send, BarChart2 } from "lucide-react";

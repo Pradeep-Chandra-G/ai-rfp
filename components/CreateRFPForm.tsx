@@ -1,10 +1,9 @@
-// components/CreateRFPForm.tsx
 "use client";
 
 import { useState } from "react";
 import { Loader2, Zap } from "lucide-react";
 import toast from "react-hot-toast";
-import { useRouter } from "next/navigation"; // Use useRouter for navigation
+import { useRouter } from "next/navigation";
 
 export default function CreateRFPForm() {
   const [input, setInput] = useState("");

@@ -1,4 +1,3 @@
-// components/SendRFPButton.tsx
 "use client";
 
 import { Send, Loader2 } from "lucide-react";
@@ -10,8 +9,7 @@ interface SendRFPButtonProps {
   rfpId: string;
   vendorIds: string[];
   onSuccess: () => void;
-  // 💡 FIX 1: Add the disabled prop to the interface
-  disabled?: boolean; // Use optional chaining just in case
+  disabled?: boolean;
 }
 
 export default function SendRFPButton({

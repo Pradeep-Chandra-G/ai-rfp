@@ -1,8 +1,6 @@
-// components/ProposalCard.tsx
 import { Zap, DollarSign, Clock, FileText } from "lucide-react";
 import Link from "next/link";
 
-// Define the expected Proposal type (must match what's passed from ProposalReviewClient.tsx)
 interface Proposal {
   id: string;
   vendorName: string;
@@ -37,7 +35,9 @@ const getScoreBadge = (score: number | null) => {
 export default function ProposalCard({ proposal }: ProposalCardProps) {
   const scoreBadge = getScoreBadge(proposal.aiScore);
   const quotedPrice =
-    proposal.pricing?.totalPrice || proposal.pricing?.estimatedCost;
+    proposal.pricing?.ocrTotalAmount ||
+    proposal.pricing?.totalPrice ||
+    proposal.pricing?.estimatedCost;
 
   return (
     <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100 flex flex-col h-full hover:shadow-xl transition duration-300">
@@ -53,7 +53,7 @@ export default function ProposalCard({ proposal }: ProposalCardProps) {
       </div>
 
       {/* AI Score and Pricing */}
-      <div className="space-y-4 mb-4 flex-grow">
+      <div className="space-y-4 mb-4 grow">
         {/* AI Score */}
         <div className="flex items-center justify-between p-2 rounded-lg bg-indigo-50">
           <span className="font-semibold text-indigo-700 flex items-center">
@@ -72,6 +72,7 @@ export default function ProposalCard({ proposal }: ProposalCardProps) {
             <DollarSign className="w-5 h-5 mr-2 text-green-600" /> Quoted Price:
           </span>
           <span className="font-bold text-xl text-green-700">
+            {/* Use the fixed quotedPrice variable here */}
             {quotedPrice ? `$${quotedPrice.toLocaleString()}` : "Price N/A"}
           </span>
         </div>
