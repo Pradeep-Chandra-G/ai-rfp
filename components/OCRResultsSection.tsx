@@ -102,7 +102,7 @@ export default function OCRResultsSection({
         <div className="space-y-4">
           {/* OCR Detected Pricing */}
           {currentPricing?.ocrDetectedItems && (
-            <div className="bg-white p-4 rounded-lg shadow">
+            <div className="bg-white p-4 rounded-lg shadow text-black">
               <h4 className="font-semibold text-gray-700 mb-2">
                 📊 Items Detected in Attachments
               </h4>

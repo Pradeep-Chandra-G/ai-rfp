@@ -6,6 +6,7 @@ import { z } from "zod";
 import Groq from "groq-sdk";
 // 💡 Use unpdf for serverless-friendly PDF text extraction
 import { extractText, getDocumentProxy } from "unpdf"; // NEW IMPORT
+import { revalidatePath } from "next/cache";
 
 // Schema for extracting structured data from OCR'd documents
 const OCRExtractionZod = z.object({
@@ -40,6 +41,24 @@ const OCRExtractionZod = z.object({
 });
 
 type OCRExtraction = z.infer<typeof OCRExtractionZod>;
+
+async function retryOperation<T>(
+  operation: () => Promise<T>,
+  maxRetries: number = 3
+): Promise<T> {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await operation();
+    } catch (error) {
+      if (i === maxRetries - 1) {
+        throw error;
+      }
+      console.log(`[RETRY] Attempt ${i + 1} failed. Retrying in 500ms...`);
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+  }
+  throw new Error("Retry limit reached.");
+}
 
 /**
  * Performs OCR on image/PDF attachments using Groq's vision model and unpdf
@@ -93,13 +112,16 @@ async function performOCR(
       try {
         const pdfUint8Array = new Uint8Array(arrayBuffer);
 
-        // 1. Load the PDF document proxy
-        const pdf = await getDocumentProxy(pdfUint8Array);
+        // FIX: Use retry wrapper for PDF extraction
+        const { text } = await retryOperation(async () => {
+          // 1. Load the PDF document proxy
+          const pdf = await getDocumentProxy(pdfUint8Array);
 
-        // 2. Extract all text, merging all pages into a single string
-        const { text } = (await extractText(pdf, { mergePages: true })) as {
-          text: string;
-        };
+          // 2. Extract all text, merging all pages into a single string
+          return (await extractText(pdf, { mergePages: true })) as {
+            text: string;
+          };
+        }, 2); // Retry up to 2 times (3 total attempts)
 
         // Use Groq to structure the extracted text
         const structuringCompletion = await groq.chat.completions.create({
@@ -251,16 +273,22 @@ ${JSON.stringify(OCRExtractionZod.shape)}`;
       ocrAdditionalNotes: structuredOCRData.additionalNotes,
     };
 
+    const originalEmailContent = proposal.rawEmail
+      .split("--- OCR EXTRACTED DATA ---")[0]
+      .trim();
+
     // 6. Update the proposal with enriched data
     await prisma.proposal.update({
       where: { id: proposalId },
       data: {
         pricing: updatedPricing,
         terms: updatedTerms,
-        // Store raw OCR results for reference
-        rawEmail: `${proposal.rawEmail}\n\n--- OCR EXTRACTED DATA ---\n${combinedOCRText}`,
+        // FIX IS HERE: This appends the OCR data to the rawEmail every time it runs.
+        rawEmail: `${originalEmailContent}\n\n--- OCR EXTRACTED DATA ---\n${combinedOCRText}`,
       },
     });
+
+    revalidatePath(`/proposal/${proposalId}`);
 
     return NextResponse.json(
       {
