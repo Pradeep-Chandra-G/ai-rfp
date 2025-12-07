@@ -180,8 +180,19 @@ Analyze the proposal thoroughly and provide realistic completeness scores based 
       StructuredProposalZod
     );
 
-    const { pricingDetails, keyTermsSummary, completenessScore } =
-      structuredProposal as any;
+    const {
+      totalPrice,
+      currency,
+      deliveryEstimateDays,
+      warrantyPeriod,
+      pricingDetails,
+      completenessScore,
+      keyTermsSummary,
+    } = structuredProposal as any;
+
+    console.log(
+      `[CHECKPOINT 5 - INBOUND SAVE]: Email AI Extracted Price: ${totalPrice}`
+    );
 
     // 6. Save Proposal to Database
     const [newProposal] = await prisma.$transaction([
@@ -190,8 +201,18 @@ Analyze the proposal thoroughly and provide realistic completeness scores based 
           rfpId: rfpId,
           vendorId: vendor.id,
           rawEmail: rawEmailContent,
-          pricing: pricingDetails as any,
-          terms: { summary: keyTermsSummary } as any,
+          pricing: {
+            totalPrice: totalPrice,
+            currency: currency,
+            deliveryEstimateDays: deliveryEstimateDays,
+            warrantyPeriod: warrantyPeriod,
+            pricingDetails: pricingDetails,
+          } as any,
+          terms: {
+            summary: keyTermsSummary,
+            deliveryEstimateDays: deliveryEstimateDays,
+            warrantyPeriod: warrantyPeriod,
+          } as any,
           aiScore: completenessScore,
           aiSummary: keyTermsSummary,
           attachments: attachmentsMetadata as any,

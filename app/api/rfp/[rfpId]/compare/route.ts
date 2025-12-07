@@ -5,11 +5,13 @@ import { prisma } from "@/lib/db";
 import { z } from "zod";
 
 interface RouteContext {
-    params: {
+  params:
+    | {
         rfpId: string;
-    } | Promise<{ 
-        rfpId: string; 
-    }>; // Allow params to be the Promise wrapper
+      }
+    | Promise<{
+        rfpId: string;
+      }>; // Allow params to be the Promise wrapper
 }
 
 // Zod Schema for the final AI Recommendation Output
@@ -18,7 +20,7 @@ const RecommendationZod = z.object({
   rationale: z
     .string()
     .describe(
-      "A detailed, 3-5 sentence explanation of why this vendor is recommended, focusing on price, completeness, and terms."
+      "A detailed, 3-5 sentence explanation of why this vendor is recommended, focusing on normalized score, price/budget, and data confidence."
     ),
   comparisonSummary: z
     .array(
@@ -29,13 +31,22 @@ const RecommendationZod = z.object({
           .int()
           .min(0)
           .max(100)
-          .describe("The completeness score from the initial parsing."),
-        totalPrice: z.number().nullable().describe("The final quoted price."),
+          .describe("The initial completeness score."),
+        totalPrice: z
+          .number()
+          .nullable()
+          .describe("The final quoted price used for comparison."),
         deliveryEstimate: z
           .number()
           .int()
           .nullable()
-          .describe("Delivery estimate in days."),
+          .describe("Delivery estimate in days (normalized)."),
+        priceConfidence: z
+          .number()
+          .int()
+          .min(0)
+          .max(100)
+          .describe("Confidence in the accuracy of the totalPrice (0-100)."),
         keyTakeaway: z
           .string()
           .describe("One sentence on the biggest pro or con of this proposal."),
@@ -51,6 +62,26 @@ const RecommendationZod = z.object({
 
 export type Recommendation = z.infer<typeof RecommendationZod>;
 
+// NEW Helper: Simplistic function to convert a common time string to days
+function normalizeDeliveryToDays(deliveryString: string | null): number | null {
+  if (!deliveryString) return null;
+  const lower = deliveryString.toLowerCase();
+
+  // Check for "XX days"
+  const daysMatch = lower.match(/(\d+)\s*day/);
+  if (daysMatch) return parseInt(daysMatch[1]);
+
+  // Check for "XX weeks"
+  const weeksMatch = lower.match(/(\d+)\s*week/);
+  if (weeksMatch) return parseInt(weeksMatch[1]) * 7;
+
+  // Check for "XX months"
+  const monthMatch = lower.match(/(\d+)\s*month/);
+  if (monthMatch) return parseInt(monthMatch[1]) * 30; // Approximation
+
+  return null;
+}
+
 // Define the expected Context type for clarity
 // export interface Context {
 //   params: {
@@ -60,28 +91,26 @@ export type Recommendation = z.infer<typeof RecommendationZod>;
 
 export async function GET(req: NextRequest, context: RouteContext) {
   try {
+    const resolvedParams = await (context.params as Promise<{ rfpId: string }>);
+    const rfpId = resolvedParams.rfpId;
+
     const url = new URL(req.url);
     const pathnameParts = url.pathname.split("/");
 
-    // The RFP ID is the last part of the path, e.g., /api/rfp/[rfpId]/compare
-    // Indexing the parts: [0]="", [1]="api", [2]="rfp", [3]="[rfpId]", [4]="compare"
-    // We expect the UUID to be at index [4] if the route is /api/rfp/[rfpId]/compare
-    // Or, more robustly, we use the fact that the UUID is always two segments before 'compare'
-
-    // Find the 'compare' segment and take the element immediately before it.
-    let rfpId: string | undefined;
+    // Robustly retrieve rfpId if context.params is not fully resolved
+    let fallbackRfpId: string | undefined;
     const compareIndex = pathnameParts.lastIndexOf("compare");
     if (compareIndex > 0) {
-      // The ID is the segment immediately before 'compare'
-      rfpId = pathnameParts[compareIndex - 1];
+      fallbackRfpId = pathnameParts[compareIndex - 1];
     }
+    const finalRfpId = rfpId || fallbackRfpId;
 
-    console.log("Comparing proposals for RFP ID (Extracted):", rfpId);
+    console.log("Comparing proposals for RFP ID:", finalRfpId);
 
-    if (!rfpId) {
-      console.error("Manual URL parsing failed to extract RFP ID.");
+    if (!finalRfpId) {
+      console.error("Failed to extract valid RFP ID.");
       return NextResponse.json(
-        { error: "Failed to parse RFP ID from URL path." },
+        { error: "RFP ID is missing or invalid." },
         { status: 400 }
       );
     }
@@ -119,27 +148,58 @@ export async function GET(req: NextRequest, context: RouteContext) {
 
     // 2. Prepare the context for the AI
     // Simplify the data structure for the LLM
-    const proposalData = rfp.proposals.map((p: ProposalItem) => ({
-      vendorName: p.vendor.name,
-      aiScore: p.aiScore,
-      pricing: p.pricing, // JSON object from the database
-      terms: p.terms, // JSON object from the database
-      rawEmailSnippet: p.rawEmail.substring(0, 500) + "...", // Limit size
-      receivedAt: p.receivedAt,
-    }));
+    const proposalData = rfp.proposals.map((p: ProposalItem) => {
+      // Prioritize OCR price, then email price
+      const finalPrice = p.pricing?.ocrTotalAmount || p.pricing?.totalPrice;
+
+      // Prioritize OCR terms, then email summary terms
+      const deliveryString = p.terms?.ocrDeliveryTimeline || p.terms?.summary;
+
+      return {
+        vendorName: p.vendor.name,
+        finalPrice: finalPrice ? parseFloat(finalPrice) : null,
+        // Normalize the delivery time to a single comparable unit (days)
+        deliveryDays: normalizeDeliveryToDays(deliveryString),
+        aiScore: p.aiScore,
+        // Use the newly calculated confidence score, or a default of 50
+        priceConfidence: p.pricing?.ocrConfidenceScore || 50,
+      };
+    });
+
+    const rfpDeadline = (rfp.deadline as Date)?.getTime();
+    const rfpDeadlineDays = rfpDeadline
+      ? Math.ceil((rfpDeadline - new Date().getTime()) / (1000 * 60 * 60 * 24))
+      : null;
 
     const contextMessage = `RFP Requirements:\n${JSON.stringify(
       rfp.requirements,
       null,
       2
-    )}\n\n--- Proposals:\n${JSON.stringify(proposalData, null, 2)}`;
+    )}\n\n--- Proposals (Normalized Data for Comparison):\n${JSON.stringify(
+      proposalData,
+      null,
+      2
+    )}
+    
+    RFP Budget: $${rfp.budget || "N/A"}
+    RFP Deadline (Days from submission): ${rfpDeadlineDays || "N/A"}
+    
+    INSTRUCTIONS FOR WEIGHTED SCORING:
+    - Prioritize data with high 'priceConfidence'.
+    - Rank 1: PRICE (lowest finalPrice gets highest favorability). Penalize proposals far above the RFP Budget.
+    - Rank 2: COMPLETENESS (highest aiScore gets highest favorability).
+    - Rank 3: DELIVERY (lowest deliveryDays gets highest favorability, especially if beating the RFP Deadline).
+    
+    The rationale must justify the winner based on these metrics.
+    `;
 
-    // 3. Define the AI System Prompt
-    const systemPrompt = `You are a procurement expert and proposal evaluation engine. Your task is to compare all the provided vendor proposals against the original RFP requirements. You MUST determine the best vendor and provide a detailed rationale, adhering strictly to the provided Zod schema. The schema is: ${JSON.stringify(
-      RecommendationZod.shape
-    )}.
-    - The primary criteria are meeting requirements (AI Score), lowest Total Price, and favorable terms.
-    - Analyze the differences in price and specifications carefully to make a justifiable recommendation.`;
+    // 3. Define the AI System Prompt (Updated to be more directive)
+    const systemPrompt = `You are a procurement expert and proposal evaluation engine. Your task is to compare all the provided vendor proposals against the original RFP requirements and the normalized metrics. 
+
+You MUST determine the best vendor and provide a detailed rationale, adhering strictly to the provided Zod schema. The core of your analysis should be based on the calculated metrics: Price, Delivery Time, Quality (aiScore), and the Price Data Confidence.
+
+The schema is: ${JSON.stringify(RecommendationZod.shape)}.
+    - Your rationale must mention the price difference, delivery difference, and confidence in the data.`;
 
     // 4. Call Groq for structured evaluation and recommendation
     const recommendationData = await getStructuredGroqOutput(
@@ -150,14 +210,14 @@ export async function GET(req: NextRequest, context: RouteContext) {
 
     // 5. Update the RFP status (optional, but good practice)
     await prisma.rFP.update({
-      where: { id: rfpId },
+      where: { id: finalRfpId },
       data: { status: "completed" },
     });
 
     return NextResponse.json(
       {
         status: "ok",
-        rfpId: rfpId,
+        rfpId: finalRfpId,
         recommendation: recommendationData,
       },
       { status: 200 }
