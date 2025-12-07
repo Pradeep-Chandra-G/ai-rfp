@@ -65,7 +65,7 @@ async function performOCR(
       const dataUrl = `data:${mimeType};base64,${base64Image}`;
 
       const completion = await groq.chat.completions.create({
-        model: "llama-3.2-90b-vision-preview",
+        model: "meta-llama/llama-4-maverick-17b-128e-instruct",
         messages: [
           {
             role: "user",
@@ -103,7 +103,7 @@ async function performOCR(
 
         // Use Groq to structure the extracted text
         const structuringCompletion = await groq.chat.completions.create({
-          model: "llama-3.1-70b-versatile",
+          model: "meta-llama/llama-4-maverick-17b-128e-instruct",
           messages: [
             {
               role: "system",
