@@ -54,7 +54,7 @@ This system addresses the challenge of unstructured data in procurement. Traditi
 * **Database:** PostgreSQL with Prisma ORM
 
 ### Services
-* **AI Inference:** Groq (LLaMA 3 models) for high-speed text generation and structured outputs.
+* **AI Inference:** Groq (LLaMA 4 model) for high-speed text generation and structured outputs.
 * **Email:** Resend for outbound emails and inbound parsing.
 * **Storage:** Vercel Blob for secure storage of vendor attachments.
 * **PDF Processing:** `unpdf` for server-side text extraction.
@@ -146,7 +146,7 @@ The application uses a relational schema with **JSONB** fields for flexibility w
 ### 3. Attachment Processing (OCR)
 **Endpoint:** `POST /api/proposals/[proposalId]/process-attachments`
 * **Behavior:**
-    * **Images:** Processed via Groq Vision models (Llama 3.2 Vision).
+    * **Images:** Processed via Groq Vision models (llama-4-maverick-17b-128e-instruct).
     * **PDFs:** Text extracted via `unpdf` and structured by LLM.
     * **Logic:** Calculates a **Data Confidence Score** by comparing the price found in the email vs. the price found in the document.
 
