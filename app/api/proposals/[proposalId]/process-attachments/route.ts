@@ -7,9 +7,7 @@ import Groq from "groq-sdk";
 // 💡 Use unpdf for serverless-friendly PDF text extraction
 import { extractText, getDocumentProxy } from "unpdf"; // NEW IMPORT
 
-interface RouteContext {
-  params: { proposalId: string };
-}
+
 
 // Schema for extracting structured data from OCR'd documents
 const OCRExtractionZod = z.object({
@@ -23,27 +21,21 @@ const OCRExtractionZod = z.object({
       })
     )
     .describe("Line items found in the document"),
-  
-  totalAmount: z
-    .number()
-    .nullable()
-    .describe("Total quoted amount if found"),
-  
+
+  totalAmount: z.number().nullable().describe("Total quoted amount if found"),
+
   deliveryTimeline: z
     .string()
     .nullable()
     .describe("Delivery or timeline information"),
-  
+
   warrantyInfo: z
     .string()
     .nullable()
     .describe("Warranty or guarantee information"),
-  
-  paymentTerms: z
-    .string()
-    .nullable()
-    .describe("Payment terms if specified"),
-  
+
+  paymentTerms: z.string().nullable().describe("Payment terms if specified"),
+
   additionalNotes: z
     .string()
     .describe("Any other important information extracted from the document"),
@@ -54,12 +46,15 @@ type OCRExtraction = z.infer<typeof OCRExtractionZod>;
 /**
  * Performs OCR on image/PDF attachments using Groq's vision model and unpdf
  */
-async function performOCR(attachmentUrl: string, mimeType: string): Promise<string> {
+async function performOCR(
+  attachmentUrl: string,
+  mimeType: string
+): Promise<string> {
   const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
   try {
     const response = await fetch(attachmentUrl);
-    
+
     if (!response.ok) {
       throw new Error(`Failed to fetch attachment: ${response.statusText}`);
     }
@@ -99,20 +94,23 @@ async function performOCR(attachmentUrl: string, mimeType: string): Promise<stri
     if (mimeType === "application/pdf") {
       try {
         const pdfUint8Array = new Uint8Array(arrayBuffer);
-        
+
         // 1. Load the PDF document proxy
         const pdf = await getDocumentProxy(pdfUint8Array);
 
         // 2. Extract all text, merging all pages into a single string
-        const { text } = await extractText(pdf, { mergePages: true }) as { text: string }; 
-        
+        const { text } = (await extractText(pdf, { mergePages: true })) as {
+          text: string;
+        };
+
         // Use Groq to structure the extracted text
         const structuringCompletion = await groq.chat.completions.create({
           model: "llama-3.1-70b-versatile",
           messages: [
             {
               role: "system",
-              content: "Extract and organize pricing, terms, and delivery information from this PDF text.",
+              content:
+                "Extract and organize pricing, terms, and delivery information from this PDF text.",
             },
             {
               role: "user",
@@ -141,7 +139,10 @@ async function performOCR(attachmentUrl: string, mimeType: string): Promise<stri
 /**
  * Main handler for processing attachments
  */
-export async function POST(req: NextRequest, context: RouteContext) {
+export async function POST(
+  req: NextRequest,
+  context: { params: { proposalId: string } }
+) {
   try {
     const resolvedParams = await context.params;
     const proposalId = resolvedParams.proposalId;
@@ -187,25 +188,24 @@ export async function POST(req: NextRequest, context: RouteContext) {
 
     for (const attachment of attachments) {
       console.log(`Processing attachment: ${attachment.filename}`);
-      
+
       try {
         const extractedText = await performOCR(
           attachment.url,
           attachment.mimeType
         );
-        
+
         ocrResults.push({
           filename: attachment.filename,
           extractedText,
         });
       } catch (error) {
-        console.error(
-          `Failed to OCR ${attachment.filename}:`,
-          error
-        );
+        console.error(`Failed to OCR ${attachment.filename}:`, error);
         ocrResults.push({
           filename: attachment.filename,
-          extractedText: `Error processing file: ${error instanceof Error ? error.message : "Unknown error"}`,
+          extractedText: `Error processing file: ${
+            error instanceof Error ? error.message : "Unknown error"
+          }`,
         });
       }
     }
@@ -227,11 +227,11 @@ ${proposal.rawEmail.substring(0, 1000)}
 Now you have additional information from OCR'd attachments. Extract any pricing, delivery, warranty, or terms information and structure it according to this schema:
 ${JSON.stringify(OCRExtractionZod.shape)}`;
 
-    const structuredOCRData = await getStructuredGroqOutput(
+    const structuredOCRData = (await getStructuredGroqOutput(
       systemPrompt,
       combinedOCRText,
       OCRExtractionZod
-    ) as OCRExtraction;
+    )) as OCRExtraction;
 
     // 5. Merge OCR data with existing proposal data
     const currentPricing = (proposal.pricing as any) || {};
