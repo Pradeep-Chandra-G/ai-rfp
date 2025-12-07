@@ -139,10 +139,13 @@ async function performOCR(
  */
 export async function POST(
   req: NextRequest,
-  context: { params: { proposalId: string } }
+  context:
+    | { params: { proposalId: string } }
+    | { params: Promise<{ proposalId: string }> }
 ) {
   try {
-    const proposalId = context.params.proposalId;
+    const resolvedParams = await context.params;
+    const proposalId = resolvedParams.proposalId;
 
     if (!proposalId) {
       return NextResponse.json(
